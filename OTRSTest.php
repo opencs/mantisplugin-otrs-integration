@@ -25,7 +25,10 @@ $bugid = $_GET['bugid'];
 	Bug ID: <input type="text" name="bugid" value="<?php echo($bugid); ?>">
 	<input type="submit">
 </form>
-<?php 
+<?php
+
+echo OTRSGetOTRSConnectPath().'<br>';
+
 if (($bugid != null) && ($bugid != '')) {
 	
 	$bug = bug_get($bugid);

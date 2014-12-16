@@ -37,6 +37,9 @@ class OTRSStatusChange {
 	}
 }
 
+function OTRSGetOTRSConnectPath() {
+	return realpath(dirname(__FILE__)).'/otrsconnect/otrsconnect.py';
+}
 
 /**
  * Recover the status change field.
@@ -90,9 +93,15 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     }
     
     function getOTRSTicket($p_bug) {
+    	
     	$t_field_name = plugin_config_get( 'otrs_field', 'OTRS Ticket', true);
-   	
-    	$t_ticket = bug_get_field($p_bug, $t_field_name);
+    	
+    	$t_field_id = custom_field_get_id_from_name($t_field_name);
+    	
+    	$t_ticket = custom_field_get_value($t_field_id, $p_bug->id);    	
+    	if ($t_ticket == false) {
+    		return null;
+    	}
     	if (($t_ticket != null) && ($t_ticket == '')){
     		$t_ticket = null;
     	}
@@ -103,7 +112,17 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	
     	// Recover the OTRS ticket number
     	$t_ticket = $this->getOTRSTicket($p_bug);
-    	log_event(LOG_EMAIL, $t_ticket);
+    	log_event(LOG_EMAIL, 'Ticket: '.$t_ticket);
+    	if ($t_ticket != null) {
+    		$t_subject = 'Mantis bug #'.$p_bug->id.' status changed to '.$p_statusChange->new_status_name;
+    		$t_body = 'Mantis bug #'.$p_bug->id.' status changed from '.$p_statusChange->old_status_name.' to '.$p_statusChange->new_status_name.'.';
+    		$t_cmd = OTRSGetOTRSConnectPath().
+      			' "'.escapeshellcmd($t_ticket).'"'.
+    			' "'.$t_subject.'"'.
+    			' "'.$t_body.'" >/dev/null';
+    		log_event(LOG_EMAIL, $t_cmd);
+    		log_event(LOG_EMAIL, exec($t_cmd));
+    	}
     }
 
     function updateBug( $p_event, $p_chained_param ) {
