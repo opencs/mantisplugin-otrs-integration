@@ -1,0 +1,7 @@
+<?php
+$s_plugin_otrsintegration_title = 'OTRS Ticket field name';
+$s_plugin_otrsintegration_config = 'Configuration';
+$s_plugin_otrsintegration_ticket_field_name = 'OTRS Ticket field name';
+$s_plugin_otrsintegration_ticket_field_name_desc = 'Name of the custom field that stores the OTRS ticket number.';
+
+?>
