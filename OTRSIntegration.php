@@ -83,6 +83,7 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     function hooks() {
         return array(
             'EVENT_UPDATE_BUG' => 'updateBug',
+        	'EVENT_REPORT_BUG' => 'newBug',
         );
     }
 
@@ -102,9 +103,13 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	if ($t_ticket == false) {
     		return null;
     	}
-    	if (($t_ticket != null) && ($t_ticket == '')){
-    		$t_ticket = null;
-    	}
+   		
+    	// Trim data
+    	$t_ticket = trim($t_ticket);
+   		if ($t_ticket == '') {
+   			$t_ticket = null;
+   		}
+   		
     	return $t_ticket;
     }
     
@@ -112,7 +117,6 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	
     	// Recover the OTRS ticket number
     	$t_ticket = $this->getOTRSTicket($p_bug);
-    	log_event(LOG_EMAIL, 'Ticket: '.$t_ticket);
     	if ($t_ticket != null) {
     		$t_subject = 'Mantis bug #'.$p_bug->id.' status changed to '.$p_statusChange->new_status_name;
     		$t_body = 'Mantis bug #'.$p_bug->id.' status changed from '.$p_statusChange->old_status_name.' to '.$p_statusChange->new_status_name.'.';
@@ -125,15 +129,39 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	}
     }
 
-    function updateBug( $p_event, $p_chained_param ) {
+    function updateBug( $p_event, $p_bug ) {
     	
     	// Search for the status change
-    	$p_statusChange = OTRSGetStatusChange($p_chained_param);
+    	$p_statusChange = OTRSGetStatusChange($p_bug);
     	if ($p_statusChange != null) {
     		$this->processBug($p_chained_param, $p_statusChange);
     	}
 
         return $p_chained_param;
     }
+    
+    function processNewBug($p_bug){
+    	 
+    	// Recover the OTRS ticket number
+    	$t_ticket = $this->getOTRSTicket($p_bug);
+    	if ($t_ticket != null) {
+    		$t_subject = 'Mantis bug #'.$p_bug->id.' added to this ticket';
+    		$t_body = 'The Mantis bug #'.$p_bug->id.' has been created for this ticket.';
+    		$t_cmd = OTRSGetOTRSConnectPath().
+    		' "'.escapeshellcmd($t_ticket).'"'.
+    		' "'.$t_subject.'"'.
+    		' "'.$t_body.'" >/dev/null';
+    		log_event(LOG_EMAIL, $t_cmd);
+    		log_event(LOG_EMAIL, exec($t_cmd));
+    	}
+    }    
 
+    
+    function newBug( $p_event, $p_bug, $i_bugid) {
+    	 
+    	// Search for the status change
+    	$this->processNewBug($p_bug);
+    
+    	return $p_chained_param;
+    }
 }
