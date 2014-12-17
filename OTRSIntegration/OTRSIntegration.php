@@ -47,19 +47,24 @@ function OTRSGetOTRSConnectPath() {
  * @param int $time
  */
 function OTRSGetStatusChange($bug) {
-	$t_mantis_bug_history_table = $t_mantis_bug_history_table = db_get_table( 'mantis_bug_history_table');
-	
 	$bugid = $bug->id;
-	$time = $bug->last_updated;
 	
-	$query = "SELECT old_value, new_value FROM $t_mantis_bug_history_table WHERE bug_id=? and field_name=? and date_modified=?";
+	# Find the last status change from history
+	$t_old_status = NEW_;
+	
+	$t_mantis_bug_history_table = $t_mantis_bug_history_table = db_get_table( 'mantis_bug_history_table');		
+	$query = "SELECT new_value FROM $t_mantis_bug_history_table WHERE bug_id=? and field_name=? order by date_modified desc limit 1";
 	$result = db_query_bound( $query, Array( $bugid,  'status', $time));
 	$result_count = db_num_rows( $result );
-	if ($result_count == 0) {
-		return null;
-	} else {
+	if ($result_count == 1) {
 		$t_row = db_fetch_array( $result );
-		return new OTRSStatusChange($t_row['old_value'], $t_row['new_value']);
+		$t_old_status = $t_row['new_value'];
+	}
+	
+	if ($bug->status != $t_old_status) {
+		return new OTRSStatusChange($t_old_status, $bug->status); 
+	} else {
+		return null;
 	}
 }
 
@@ -113,55 +118,53 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	return $t_ticket;
     }
     
-    function processBug($p_bug, $p_statusChange){
+    function addNoteToOTRS($t_ticket, $t_subject, $t_body){
     	
-    	// Recover the OTRS ticket number
-    	$t_ticket = $this->getOTRSTicket($p_bug);
-    	if ($t_ticket != null) {
-    		$t_subject = 'Mantis bug #'.$p_bug->id.' status changed to '.$p_statusChange->new_status_name;
-    		$t_body = 'Mantis bug #'.$p_bug->id.' status changed from '.$p_statusChange->old_status_name.' to '.$p_statusChange->new_status_name.'.';
-    		$t_cmd = OTRSGetOTRSConnectPath().
-      			' "'.escapeshellcmd($t_ticket).'"'.
-    			' "'.$t_subject.'"'.
-    			' "'.$t_body.'" >/dev/null';
-    		log_event(LOG_EMAIL, $t_cmd);
-    		log_event(LOG_EMAIL, exec($t_cmd));
-    	}
+    	$t_cmd = OTRSGetOTRSConnectPath().
+	    	' "'.escapeshellcmd($t_ticket).'"'.
+	    	' "'.$t_subject.'"'.
+	    	' "'.$t_body.'" > /dev/null 2>&1';
+    	log_event(LOG_EMAIL, $t_cmd);
+    	exec($t_cmd);    	 
     }
-
-    function updateBug( $p_event, $p_bug ) {
+    
+    function processBug($p_bug, $t_ticket){
     	
     	// Search for the status change
     	$p_statusChange = OTRSGetStatusChange($p_bug);
     	if ($p_statusChange != null) {
-    		$this->processBug($p_chained_param, $p_statusChange);
+    		log_event(LOG_EMAIL, 'Status: '.$p_bug->status);
+    		$t_subject = 'Mantis bug #'.$p_bug->id.' status changed to '.$p_statusChange->new_status_name;
+    		$t_body = 'Mantis bug #'.$p_bug->id.' status changed from '.$p_statusChange->old_status_name.' to '.$p_statusChange->new_status_name.'.';
+    		$this->addNoteToOTRS($t_ticket, $t_subject, $t_body);
     	}
-
-        return $p_chained_param;
     }
     
-    function processNewBug($p_bug){
+    function processNewBug($p_bug, $t_ticket){
     	 
     	// Recover the OTRS ticket number
-    	$t_ticket = $this->getOTRSTicket($p_bug);
-    	if ($t_ticket != null) {
-    		$t_subject = 'Mantis bug #'.$p_bug->id.' added to this ticket';
-    		$t_body = 'The Mantis bug #'.$p_bug->id.' has been created for this ticket.';
-    		$t_cmd = OTRSGetOTRSConnectPath().
-    		' "'.escapeshellcmd($t_ticket).'"'.
-    		' "'.$t_subject.'"'.
-    		' "'.$t_body.'" >/dev/null';
-    		log_event(LOG_EMAIL, $t_cmd);
-    		log_event(LOG_EMAIL, exec($t_cmd));
-    	}
+		$t_subject = 'Mantis bug #'.$p_bug->id.' added to this ticket';
+   		$t_body = 'The Mantis bug #'.$p_bug->id.' has been created for this ticket.';
+    	$this->addNoteToOTRS($t_ticket, $t_subject, $t_body);   		
     }    
-
+    
+    function updateBug( $p_event, $p_bug) {
+    	
+    	$t_ticket = $this->getOTRSTicket($p_bug);
+    	log_event(LOG_EMAIL, 'Ticket: '.$t_ticket);
+    	if ($t_ticket != null) {
+    		$this->processBug($p_bug, $t_ticket);
+    	}    	
+    
+    	return $p_bug;
+    }    
     
     function newBug( $p_event, $p_bug, $i_bugid) {
-    	 
-    	// Search for the status change
-    	$this->processNewBug($p_bug);
-    
-    	return $p_chained_param;
+    	
+    	$t_ticket = $this->getOTRSTicket($p_bug);
+    	if ($t_ticket != null) {
+    		// Search for the status change
+    		$this->processNewBug($p_bug, $t_ticket);
+    	}
     }
 }
