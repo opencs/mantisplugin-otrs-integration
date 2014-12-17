@@ -46,7 +46,9 @@ In order to make the OTRS connection work:
 
 #### Using the existing WSDL file
 
-If you want to use the existing WSDL file, set the namespace to "http://www.otrs.org/TicketConnector/" during the creation of the service. Edit the file otrsconnect.wsdl and change the soap:address location to the actual OTRS Webservice URL.
+If you want to use the existing WSDL file, set the namespace to "http://www.otrs.org/TicketConnector/" during the creation of the service.
+
+Inside the directory &lt;plugin directory&gt;/otrsconnect, copy the file otrsconnect.wsdl.template to otrsconnect.wsdl. Now, edit the file otrsconnect.wsdl and change the soap:address location to the actual OTRS Webservice URL.
 
 ## License
 
