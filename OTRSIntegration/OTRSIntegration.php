@@ -17,6 +17,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/**
+ * This class represents the change of the status of a given bug.
+ * 
+ * @author Fabio Jun Takada Chino
+ * @since 1.0
+ */
 class OTRSStatusChange {
 
 	private $old_status;
@@ -42,27 +48,43 @@ function OTRSGetOTRSConnectPath() {
 }
 
 /**
+ * Returns the last history entry for a given field.
+ * 
+ * @param BugData $p_bug The bug data.
+ * @param string $t_field The name of the field.
+ * @return array or null if no change has been found.
+ */
+function OTRSGetLastChange($p_bug, $t_field) {
+
+	$t_mantis_bug_history_table = $t_mantis_bug_history_table = db_get_table( 'mantis_bug_history_table');
+	
+	$query = "SELECT * FROM $t_mantis_bug_history_table WHERE bug_id=? and field_name=? and date_modified < ? order by date_modified desc limit 1";
+	$result = db_query_bound( $query, Array($p_bug->id,  $t_field, $p_bug->last_updated));
+	$result_count = db_num_rows( $result );
+	if ($result_count == 1) {
+		return db_fetch_array( $result );
+	} else {
+		return null;
+	}	
+}
+
+/**
  * Recover the status change field.
+ * 
  * @param int $bugid
  * @param int $time
  */
-function OTRSGetStatusChange($bug) {
-	$bugid = $bug->id;
+function OTRSGetStatusChange($p_bug) {
 	
-	# Find the last status change from history
+	# Find the last status change from history. Defaults to NEW
 	$t_old_status = NEW_;
-	
-	$t_mantis_bug_history_table = $t_mantis_bug_history_table = db_get_table( 'mantis_bug_history_table');		
-	$query = "SELECT new_value FROM $t_mantis_bug_history_table WHERE bug_id=? and field_name=? order by date_modified desc limit 1";
-	$result = db_query_bound( $query, Array( $bugid,  'status', $time));
-	$result_count = db_num_rows( $result );
-	if ($result_count == 1) {
-		$t_row = db_fetch_array( $result );
-		$t_old_status = $t_row['new_value'];
+	$t_last_change = OTRSGetLastChange($p_bug, 'status');
+	if ($t_last_change != null) {
+		$t_old_status = $t_last_change['new_value'];
 	}
 	
-	if ($bug->status != $t_old_status) {
-		return new OTRSStatusChange($t_old_status, $bug->status); 
+	if ($p_bug->status != $t_old_status) {
+		return new OTRSStatusChange($t_old_status, $p_bug->status); 
 	} else {
 		return null;
 	}
@@ -123,7 +145,7 @@ class OTRSIntegrationPlugin extends MantisPlugin {
     	$t_cmd = OTRSGetOTRSConnectPath().
 	    	' "'.escapeshellcmd($t_ticket).'"'.
 	    	' "'.$t_subject.'"'.
-	    	' "'.$t_body.'" > /dev/null 2>&1';
+	    	' "'.$t_body.'" > /dev/null 2>&1 &';
     	log_event(LOG_EMAIL, $t_cmd);
     	exec($t_cmd);    	 
     }
